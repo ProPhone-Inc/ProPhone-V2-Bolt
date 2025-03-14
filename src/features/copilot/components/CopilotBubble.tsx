@@ -17,6 +17,19 @@ export function CopilotBubble() {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const { playNotification } = useAudio();
   const { unreadCount, hasUnreadMessage, markAsRead } = useUnreadMessages(messages);
+  const [isCallActive, setIsCallActive] = React.useState(false);
+
+  // Listen for call state changes
+  React.useEffect(() => {
+    const handleCallStateChange = (e: CustomEvent) => {
+      setIsCallActive(e.detail.active);
+    };
+    
+    window.addEventListener('phoneCallStateChange', handleCallStateChange as EventListener);
+    return () => {
+      window.removeEventListener('phoneCallStateChange', handleCallStateChange as EventListener);
+    };
+  }, []);
 
   // Show welcome message when component mounts
   React.useEffect(() => {
@@ -58,7 +71,9 @@ Ready to begin? Just tell me which provider you'd like to use (OpenAI, Anthropic
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[200]">
+    <div className={`fixed bottom-6 transition-all duration-300 ${
+      isCallActive ? 'right-[380px]' : 'right-6'
+    } z-[200]`}>
       {isOpen && (
         <>
           {isExpanded ? (

@@ -1,5 +1,7 @@
 import React from 'react';
-import { PenSquare, Phone, CheckCircle, Home, Sun, Flame, Megaphone, Calendar, BarChart2, DollarSign, Bell, Filter } from 'lucide-react';
+import { PenSquare, Phone, ChevronDown, Home, Flame, Sun, Bell, Megaphone, Calendar, BarChart2, DollarSign, CheckCircle, ThumbsDown, Ban, Filter, Mail, Eye, EyeOff, MessageCircle, X, Check, Users, Trash2, CheckSquare, Square } from 'lucide-react';
+import { useClickOutside } from '../../../hooks/useClickOutside';
+import { Dialpad } from './Dialpad';
 import type { Chat } from '../../../modules/phone/types';
 
 interface ChatsListProps {
@@ -9,15 +11,16 @@ interface ChatsListProps {
   selectedLine: string | null;
   currentChat: string | null;
   conversations: Chat[];
+  selectedChats: string[];
+  setSelectedChats: React.Dispatch<React.SetStateAction<string[]>>;
   onChatSelect: (id: string) => void;
   onNewMessage: () => void;
   chatStatuses: Record<string, { label: string; icon: React.ReactNode }>;
+  onMakeCall?: (number: string) => void;
+  onDeleteChats: (chatIds: string[]) => void;
+  onMarkRead: (chatIds: string[]) => void;
+  onMarkUnread: (chatIds: string[]) => void;
 }
-
-type FilterState = {
-  readStatus: 'all' | 'unread' | 'read';
-  status: string;
-};
 
 export function ChatsList({
   width,
@@ -26,35 +29,120 @@ export function ChatsList({
   selectedLine,
   currentChat,
   conversations,
+  selectedChats,
+  setSelectedChats,
   onChatSelect,
+  onMakeCall,
   onNewMessage,
-  chatStatuses
+  chatStatuses,
+  onDeleteChats,
+  onMarkRead,
+  onMarkUnread
 }: ChatsListProps) {
   const [chatPreviews, setChatPreviews] = React.useState<Record<string, { message: string; time: string }>>({});
-  const [filters, setFilters] = React.useState<FilterState>({
-    readStatus: 'all',
-    status: 'all'
-  });
-  const [selectedFilters, setSelectedFilters] = React.useState<{
-    readStatus: string | null;
-    statuses: string[];
+  const [showMessageFilter, setShowMessageFilter] = React.useState(false);
+  const [selectedStatus, setSelectedStatus] = React.useState<string>('all');
+  const [messageFilter, setMessageFilter] = React.useState<string>('all');
+  const [hoveredAvatar, setHoveredAvatar] = React.useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = React.useState<{
+    readStatus: { value: string; label: string } | null;
+    statuses: Array<{ value: string; label: string; icon: React.ReactNode; color: string }>;
   }>({
     readStatus: null,
     statuses: []
   });
-  const [showFilterDropdown, setShowFilterDropdown] = React.useState(false);
-  const filterRef = React.useRef<HTMLDivElement>(null);
+  const messageFilterRef = React.useRef<HTMLDivElement>(null);
+  const toolbarRef = React.useRef<HTMLDivElement>(null);
 
-  const statusIcons = {
-    new: <Home className="w-4 h-4 text-emerald-400" />,
-    hot: <Flame className="w-4 h-4 text-red-400" />,
-    warm: <Sun className="w-4 h-4 text-amber-400" />,
-    'follow-up': <Bell className="w-4 h-4 text-purple-400" />,
-    prospecting: <Megaphone className="w-4 h-4 text-blue-400" />,
-    'appointment-set': <Calendar className="w-4 h-4 text-indigo-400" />,
-    'needs-analysis': <BarChart2 className="w-4 h-4 text-cyan-400" />,
-    'make-offer': <DollarSign className="w-4 h-4 text-green-400" />,
-    conversion: <CheckCircle className="w-4 h-4 text-emerald-400" />
+  useClickOutside(messageFilterRef, () => {
+    setShowMessageFilter(false);
+  });
+
+  const handleSelectChat = (chatId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedChats(prev => 
+      prev.includes(chatId)
+        ? prev.filter(id => id !== chatId)
+        : [...prev, chatId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedChats(prev => 
+      prev.length === displayedConversations.length
+        ? []
+        : displayedConversations.map(chat => chat.id)
+    );
+  };
+
+  const handleMarkRead = () => {
+    onMarkRead(selectedChats);
+  };
+
+  const handleMarkUnread = () => {
+    onMarkUnread(selectedChats);
+  };
+
+  const handleDelete = () => {
+    onDeleteChats(selectedChats);
+  };
+
+  const messageFilterOptions = [
+    { value: 'all', label: 'All Messages', icon: <MessageCircle className="w-4 h-4 text-white/60" />, color: 'text-white/60 bg-white/10' },
+    { value: 'unread', label: 'Unread', icon: <EyeOff className="w-4 h-4 text-amber-400" />, color: 'text-amber-400 bg-amber-400/20' },
+    { value: 'read', label: 'Read', icon: <Eye className="w-4 h-4 text-emerald-400" />, color: 'text-emerald-400 bg-emerald-400/20' },
+    { value: 'not-responded', label: 'Not Responded', icon: <Mail className="w-4 h-4 text-red-400" />, color: 'text-red-400 bg-red-400/20' }
+  ];
+
+  const statusOptions = [
+    { value: 'new', label: 'New', icon: <Home className="w-4 h-4" />, color: 'text-emerald-400 bg-emerald-400/20' },
+    { value: 'hot', label: 'Hot', icon: <Flame className="w-4 h-4" />, color: 'text-red-400 bg-red-400/20' },
+    { value: 'warm', label: 'Warm', icon: <Sun className="w-4 h-4" />, color: 'text-amber-400 bg-amber-400/20' },
+    { value: 'follow-up', label: 'Follow Up', icon: <Bell className="w-4 h-4" />, color: 'text-purple-400 bg-purple-400/20' },
+    { value: 'prospecting', label: 'Prospecting', icon: <Megaphone className="w-4 h-4" />, color: 'text-blue-400 bg-blue-400/20' },
+    { value: 'appointment-set', label: 'Appointment Set', icon: <Calendar className="w-4 h-4" />, color: 'text-indigo-400 bg-indigo-400/20' },
+    { value: 'needs-analysis', label: 'Needs Analysis', icon: <BarChart2 className="w-4 h-4" />, color: 'text-cyan-400 bg-cyan-400/20' },
+    { value: 'make-offer', label: 'Make Offer', icon: <DollarSign className="w-4 h-4" />, color: 'text-green-400 bg-green-400/20' },
+    { value: 'not-interested', label: 'Not Interested', icon: <ThumbsDown className="w-4 h-4" />, color: 'text-gray-400 bg-gray-400/20' },
+    { value: 'dnc', label: 'DNC', icon: <Ban className="w-4 h-4" />, color: 'text-red-700 bg-red-700/20' },
+    { value: 'conversion', label: 'Conversion', icon: <CheckCircle className="w-4 h-4" />, color: 'text-emerald-400 bg-emerald-400/20' }
+  ];
+
+  const handleMessageFilterClick = (option: { value: string; label: string; icon: React.ReactNode }) => {
+    // Update message filter
+    setMessageFilter(option.value);
+    
+    // Update active filters
+    if (option.value === 'all') {
+      setActiveFilters(prev => ({ ...prev, readStatus: null }));
+    } else {
+      setActiveFilters(prev => ({
+        ...prev,
+        readStatus: { value: option.value, label: option.label }
+      }));
+    }
+    
+    setShowMessageFilter(false);
+  };
+
+  const handleStatusFilterClick = (option: { value: string; label: string; icon: React.ReactNode; color?: string }) => {
+    // Add new status to active filters
+    const newStatus = {
+      value: option.value,
+      label: option.label,
+      icon: option.icon,
+      color: option.color || ''
+    };
+    
+    // Only add if not already present
+    setActiveFilters(prev => ({
+      ...prev,
+      statuses: prev.statuses.some(s => s.value === option.value) 
+        ? prev.statuses 
+        : [...prev.statuses, newStatus]
+    }));
+    
+    setShowMessageFilter(false);
   };
 
   // Update chat previews when conversations change
@@ -72,191 +160,87 @@ export function ChatsList({
     setChatPreviews(previews);
   }, [conversations]);
 
-  // Close filter dropdown when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
-        setShowFilterDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const statusOptions = [
-    { value: 'all', label: 'All Status', icon: <Filter className="w-4 h-4 text-white/60" /> },
-    { value: 'new', label: 'New', icon: <Home className="w-4 h-4 text-emerald-400" /> },
-    { value: 'hot', label: 'Hot', icon: <Flame className="w-4 h-4 text-red-400" /> },
-    { value: 'warm', label: 'Warm', icon: <Sun className="w-4 h-4 text-amber-400" /> },
-    { value: 'follow-up', label: 'Follow Up', icon: <Bell className="w-4 h-4 text-purple-400" /> },
-    { value: 'prospecting', label: 'Prospecting', icon: <Megaphone className="w-4 h-4 text-blue-400" /> },
-    { value: 'appointment-set', label: 'Appointment Set', icon: <Calendar className="w-4 h-4 text-indigo-400" /> },
-    { value: 'needs-analysis', label: 'Needs Analysis', icon: <BarChart2 className="w-4 h-4 text-cyan-400" /> },
-    { value: 'make-offer', label: 'Make Offer', icon: <DollarSign className="w-4 h-4 text-green-400" /> },
-    { value: 'conversion', label: 'Conversion', icon: <CheckCircle className="w-4 h-4 text-emerald-400" /> }
-  ];
-
-  const filteredConversations = React.useMemo(() => { 
+  const displayedConversations = React.useMemo(() => { 
     if (!selectedLine) return [];
-    
     return conversations.filter(chat => {
-      if (chat.lineId !== selectedLine) {
-        return false;
-      }
+      if (chat.lineId !== selectedLine) return false;
       
-      // Apply read status filter
-      if (filters.readStatus === 'unread' && chat.unread === 0) {
-        return false;
-      }
-      if (filters.readStatus === 'read' && chat.unread > 0) {
-        return false;
-      }
+      // Apply message filter
+      if (messageFilter === 'unread' && chat.unread === 0) return false;
+      if (messageFilter === 'read' && chat.unread > 0) return false;
+      if (messageFilter === 'not-responded' && chat.messages.length > 0 && 
+          chat.messages[chat.messages.length - 1].type === 'sent') return false;
       
       // Apply status filter
-      if (filters.status !== 'all') {
-        const chatStatus = chatStatuses[chat.id]?.label.toLowerCase();
-        if (chatStatus !== filters.status.toLowerCase()) {
-          return false;
-        }
-      }
+      if (activeFilters.statuses.length === 0) return true;
       
-      return true;
+      // Check if chat matches any of the selected status filters
+      const chatStatus = chatStatuses[chat.id]?.label.toLowerCase();
+      return activeFilters.statuses.some(status => status.value === chatStatus);
     });
-  }, [selectedLine, conversations, filters, chatStatuses]);
+  }, [selectedLine, conversations, messageFilter, activeFilters.statuses, chatStatuses]);
 
   return (
-    <div 
-      className="h-full border-r border-[#B38B3F]/20 bg-zinc-900/60 flex flex-col relative group"
+    <div
+      className="h-full border-r border-[#B38B3F]/20 bg-zinc-900/60 flex flex-col relative group isolate"
       style={{ width }}
     >
-      <div className="sticky top-0 p-4 border-b border-[#B38B3F]/20 bg-zinc-900/70">
+      <div className="sticky top-0 p-4 border-b border-[#B38B3F]/20 bg-zinc-900/70 z-[100]">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-white">Chats</h2>
-          <div className="flex items-center space-x-2">
-            <div className="relative" ref={filterRef}>
+          <div className="flex items-center space-x-3">
+            <div className="relative z-[110]" ref={messageFilterRef}>
               <button
-                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMessageFilter(!showMessageFilter);
+                }}
                 className={`p-2 rounded-lg transition-colors ${
-                  selectedFilters.readStatus || selectedFilters.statuses.length > 0
+                  messageFilter !== 'all' || selectedStatus !== 'all'
                     ? 'bg-[#FFD700]/20 text-[#FFD700]'
                     : 'hover:bg-white/10 text-[#FFD700]'
                 }`}
+                title="Filter Chats"
               >
                 <Filter className="w-5 h-5" />
               </button>
-              {showFilterDropdown && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-zinc-900 border border-[#B38B3F]/20 rounded-lg shadow-xl z-[100]">
-                  <div className="p-2 border-b border-[#B38B3F]/20">
-                    <div className="text-xs font-medium text-white/60 mb-2">Message Status</div>
+              {showMessageFilter && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-zinc-900/95 backdrop-blur-md border border-[#B38B3F]/20 rounded-lg shadow-xl">
+                <div className="p-2 border-b border-[#B38B3F]/20">
+                  <div className="text-xs font-medium text-white/60 mb-2">Message Status</div>
+                  {messageFilterOptions.map((option) => (
                     <button
-                      onClick={() => {
-                        setFilters(prev => ({ ...prev, readStatus: 'all' }));
-                        setSelectedFilters(prev => ({ ...prev, readStatus: null }));
-                      }}
-                      className={`w-full px-4 py-2 text-left hover:bg-white/10 rounded-lg transition-colors ${
-                        filters.readStatus === 'all' ? 'text-[#FFD700]' : 'text-white'
+                      key={option.value}
+                      onClick={() => handleMessageFilterClick(option)}
+                      className={`w-full px-4 py-2 flex items-center space-x-3 transition-colors ${
+                        messageFilter === option.value ? 'bg-[#FFD700]/10 text-[#FFD700]' : 'text-white hover:bg-white/5'
                       }`}
                     >
-                      All Messages
+                      {option.icon}
+                      <span>{option.label}</span>
                     </button>
-                    <button
-                      onClick={() => {
-                        setFilters(prev => ({ ...prev, readStatus: 'unread' }));
-                        setSelectedFilters(prev => ({ ...prev, readStatus: 'unread' }));
-                      }}
-                      className={`w-full px-4 py-2 text-left hover:bg-white/10 rounded-lg transition-colors ${
-                        filters.readStatus === 'unread' ? 'text-[#FFD700]' : 'text-white'
-                      }`}
-                    >
-                      Unread
-                    </button>
-                    <button
-                      onClick={() => {
-                        setFilters(prev => ({ ...prev, readStatus: 'read' }));
-                        setSelectedFilters(prev => ({ ...prev, readStatus: 'read' }));
-                      }}
-                      className={`w-full px-4 py-2 text-left hover:bg-white/10 rounded-lg transition-colors ${
-                        filters.readStatus === 'read' ? 'text-[#FFD700]' : 'text-white'
-                      }`}
-                    >
-                      Read
-                    </button>
-                  </div>
-                  <div className="p-2">
-                    <div className="text-xs font-medium text-white/60 mb-2">Contact Status</div>
-                    {statusOptions.map(option => (
-                      <button
-                        key={option.value}
-                        onClick={() => {
-                          setFilters(prev => ({ ...prev, status: option.value }));
-                          if (option.value === 'all') {
-                            setSelectedFilters(prev => ({ ...prev, statuses: [] }));
-                          } else {
-                            setSelectedFilters(prev => ({
-                              ...prev,
-                              statuses: [...prev.statuses, option.value]
-                            }));
-                          }
-                        }}
-                        className={`w-full px-4 py-2 text-left hover:bg-white/10 rounded-lg transition-colors flex items-center space-x-3 ${
-                          selectedFilters.statuses.includes(option.value) || 
-                          (option.value === 'all' && selectedFilters.statuses.length === 0)
-                            ? 'text-[#FFD700]'
-                            : 'text-white'
-                        }`}
-                      >
-                        {option.icon}
-                        <span>{option.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  ))}
                 </div>
+                <div className="p-2">
+                  <div className="text-xs font-medium text-white/60 mb-2">Contact Status</div>
+                  {statusOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => handleStatusFilterClick(option)}
+                      className={`w-full px-4 py-2 flex items-center space-x-3 transition-colors rounded-lg ${
+                        selectedStatus === option.value ? option.color : 'text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <span className={selectedStatus === option.value ? '' : option.color.split(' ')[0]}>
+                        {option.icon}
+                      </span>
+                      <span>{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               )}
             </div>
-            {/* Selected Filters Display */}
-            {(selectedFilters.readStatus || selectedFilters.statuses.length > 0) && (
-              <div className="absolute left-0 right-0 -bottom-12 flex flex-wrap gap-2 px-4 py-2 bg-zinc-900/95 border-b border-[#B38B3F]/20">
-                {selectedFilters.readStatus && (
-                  <div className="px-2 py-1 rounded-full bg-[#FFD700]/20 text-[#FFD700] text-xs font-medium flex items-center">
-                    <span>{selectedFilters.readStatus.charAt(0).toUpperCase() + selectedFilters.readStatus.slice(1)}</span>
-                    <button
-                      onClick={() => {
-                        setFilters(prev => ({ ...prev, readStatus: 'all' }));
-                        setSelectedFilters(prev => ({ ...prev, readStatus: null }));
-                      }}
-                      className="ml-1 hover:text-white"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-                {selectedFilters.statuses.map(status => {
-                  const option = statusOptions.find(opt => opt.value === status);
-                  if (!option) return null;
-                  return (
-                    <div key={status} className="px-2 py-1 rounded-full bg-[#FFD700]/20 text-[#FFD700] text-xs font-medium flex items-center">
-                      {option.icon}
-                      <span className="ml-1">{option.label}</span>
-                      <button
-                        onClick={() => {
-                          setSelectedFilters(prev => ({
-                            ...prev,
-                            statuses: prev.statuses.filter(s => s !== status)
-                          }));
-                          if (selectedFilters.statuses.length === 1) {
-                            setFilters(prev => ({ ...prev, status: 'all' }));
-                          }
-                        }}
-                        className="ml-1 hover:text-white"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
             <button 
               onClick={() => {
                 if (selectedLine) {
@@ -278,18 +262,114 @@ export function ChatsList({
               disabled={!selectedLine}
               className={`p-2 rounded-lg transition-colors cursor-default ${
                 selectedLine
-                  ? 'hover:bg-white/10 text-[#FFD700]'
+                  ? 'hover:bg-white/10 text-[#FFD700] cursor-pointer'
                   : 'text-white/20'
               }`}
               title={selectedLine ? 'Make Call' : 'Select a line to make calls'}
+              onClick={() => {
+                if (selectedLine) {
+                  onMakeCall?.(selectedLine || '');
+                }
+              }}
             >
               <Phone className="w-5 h-5" />
             </button>
           </div>
         </div>
+        {/* Active Filters */}
+        {(activeFilters.readStatus || activeFilters.statuses.length > 0) && (
+          <div className="flex items-center flex-wrap gap-2">
+            {activeFilters.readStatus && (
+              <div className={`px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1.5 ${
+                messageFilterOptions.find(opt => opt.value === activeFilters.readStatus?.value)?.color
+              }`}>
+                <span className="flex items-center">
+                  {messageFilterOptions.find(opt => opt.value === activeFilters.readStatus?.value)?.icon}
+                </span>
+                <span className="ml-1.5">{activeFilters.readStatus.label}</span>
+                <button
+                  onClick={() => {
+                    setActiveFilters(prev => ({ ...prev, readStatus: null }));
+                    setMessageFilter('all');
+                  }}
+                  className="p-0.5 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            {activeFilters.statuses.map((status) => (
+              <div 
+                key={status.value}
+                className={`px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1.5 ${status.color}`}
+              >
+                <span className="flex items-center">
+                  {status.icon}
+                </span>
+                <span>{status.label}</span>
+                <button
+                  onClick={() => {
+                    setActiveFilters(prev => ({
+                      ...prev,
+                      statuses: prev.statuses.filter(s => s.value !== status.value),
+                    }));
+                  }}
+                  className="p-0.5 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+      {selectedChats.length > 0 && (
+        <div 
+          ref={toolbarRef}
+          className="absolute mx-4 bottom-4 bg-gradient-to-r from-[#B38B3F]/60 to-[#FFD700]/60 backdrop-blur-sm rounded-lg h-8 shadow-lg shadow-[#B38B3F]/10 px-2 flex items-center space-x-1 z-[200] animate-fade-in border border-[#B38B3F]/20"
+          style={{ 
+            width: 'calc(100% - 32px)',
+            left: '16px'
+          }}
+        >
+          <button
+            onClick={handleSelectAll}
+            className="px-2 py-1 hover:bg-black/10 rounded-md transition-colors text-black/90 flex items-center space-x-1.5 text-xs font-medium"
+            title={selectedChats.length === displayedConversations.length ? "Deselect All" : "Select All"}
+          >
+            {selectedChats.length === displayedConversations.length ? (
+              <CheckSquare className="w-3.5 h-3.5" />
+            ) : (
+              <Square className="w-3.5 h-3.5" />
+            )}
+            <span className="text-sm">{selectedChats.length} selected</span>
+          </button>
+          <div className="w-px h-3 bg-black/5" />
+          <button
+            onClick={handleMarkRead}
+            className="p-1 hover:bg-black/10 rounded-md transition-colors text-black/90"
+            title="Mark as Read"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleMarkUnread}
+            className="p-1 hover:bg-black/10 rounded-md transition-colors text-black/90"
+            title="Mark as Unread"
+          >
+            <EyeOff className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleDelete}
+            className="p-1 hover:bg-black/10 rounded-md transition-colors text-black/90"
+            title="Delete Selected"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto relative">
-        {filteredConversations.map((chat) => (
+        {displayedConversations.map((chat) => (
           <button
             key={chat.id}
             onClick={() => onChatSelect(chat.id)}
@@ -302,7 +382,15 @@ export function ChatsList({
             }`}
           >
             <div className="flex items-center space-x-3">
-              <div className="relative flex-shrink-0">
+              <div 
+                className="relative flex-shrink-0 group"
+                onMouseEnter={() => setHoveredAvatar(chat.id)}
+                onMouseLeave={() => setHoveredAvatar(null)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelectChat(chat.id, e);
+                }}
+              >
                 <div className="w-10 h-10 rounded-full bg-[#B38B3F]/20 flex items-center justify-center text-[#FFD700]">
                   {chat.id === 'draft' ? (
                     <PenSquare className="w-5 h-5" />
@@ -314,6 +402,15 @@ export function ChatsList({
                     chat.name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
                   )}
                 </div>
+                {(hoveredAvatar === chat.id || selectedChats.includes(chat.id)) && (
+                  <div className="absolute inset-0 rounded-full bg-black/60 backdrop-blur-[1px] flex items-center justify-center cursor-pointer transform transition-all duration-200 group-hover:scale-110">
+                    <div className="w-4 h-4 rounded border-2 border-[#FFD700] bg-[#FFD700]/20 flex items-center justify-center">
+                      {selectedChats.includes(chat.id) ? (
+                        <Check className="w-3 h-3 text-[#FFD700]" />
+                      ) : null}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-white whitespace-nowrap overflow-hidden text-ellipsis">

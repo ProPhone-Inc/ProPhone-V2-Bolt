@@ -4,8 +4,10 @@ import { useResizable } from '../../hooks/useResizable';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useNotifications } from '../../hooks/useNotifications';
 import { ProviderModal } from './ProviderModal';
+import { SearchModal } from './components/SearchModal';
 import { PhoneLinesList } from './components/PhoneLinesList';
 import { ChatsList } from './components/ChatsList';
+import { PhoneCallModal } from './components/PhoneCallModal';
 import { ChatArea } from './components/ChatArea';
 import { CRMPanel } from './components/CRMPanel';
 import type { PhoneLine, Chat } from '../../modules/phone/types';
@@ -92,15 +94,20 @@ export function PhoneSystem({ selectedMessage, selectedChat, onMessageSelect }: 
     // Auto-select first line if available
     return phoneLines.length > 0 ? phoneLines[0].id : null;
   });
+  const [selectedChats, setSelectedChats] = React.useState<string[]>([]);
   const [messageInput, setMessageInput] = React.useState('');
   const [currentChat, setCurrentChat] = React.useState<string | null>(null);
+  const [localUnreadCounts, setLocalUnreadCounts] = React.useState<Record<string, number>>({});
   const [showProviderModal, setShowProviderModal] = React.useState(false);
   const [selectedProvider, setSelectedProvider] = React.useState<string | null>(null);
   const [localPhoneLines, setLocalPhoneLines] = React.useState(phoneLines);
   const [draftChat, setDraftChat] = React.useState<Chat | null>(null);
   const [isCreatingMessage, setIsCreatingMessage] = React.useState(false);
   const [newMessageNumber, setNewMessageNumber] = React.useState('');
+  const [showSearch, setShowSearch] = React.useState(false);
   const [isDraft, setIsDraft] = React.useState(false);
+  const [showCallModal, setShowCallModal] = React.useState(false);
+  const [callContact, setCallContact] = React.useState<{name?: string; number: string} | null>(null);
 
   // Effect to handle initial line selection when phone lines change
   React.useEffect(() => {
@@ -385,6 +392,7 @@ export function PhoneSystem({ selectedMessage, selectedChat, onMessageSelect }: 
   const handleStartNewMessage = () => {
     if (!selectedLine) return;
     setIsCreatingMessage(true);
+    setSelectedChats([]);
     setCurrentChat(null);
     setIsDraft(true);
     // Create a draft chat
@@ -515,6 +523,82 @@ export function PhoneSystem({ selectedMessage, selectedChat, onMessageSelect }: 
     setNewMessageNumber('');
   };
 
+  const handleDeleteChats = (chatIds: string[]) => {
+    // Remove chats from conversations
+    setConversations(prev => prev.filter(chat => !chatIds.includes(chat.id)));
+    
+    // Clear selection
+    setSelectedChats([]);
+    
+    // If current chat was deleted, clear it
+    if (currentChat && chatIds.includes(currentChat)) {
+      setCurrentChat(null);
+    }
+  };
+
+  const handleMarkRead = (chatIds: string[]) => {
+    // Update conversations
+    setConversations(prev => prev.map(chat => {
+      if (chatIds.includes(chat.id)) {
+        return { ...chat, unread: 0 };
+      }
+      return chat;
+    }));
+    
+    // Update phone line unread counts
+    setLocalPhoneLines(prev => prev.map(line => {
+      const lineChats = line.chats.map(chat => ({
+        ...chat,
+        unread: chatIds.includes(chat.id) ? 0 : chat.unread
+      }));
+      
+      return {
+        ...line,
+        chats: lineChats,
+        unread: lineChats.reduce((sum, chat) => sum + chat.unread, 0)
+      };
+    }));
+    
+    // Clear selection
+    setSelectedChats([]);
+  };
+
+  const handleMarkUnread = (chatIds: string[]) => {
+    // Update conversations
+    setConversations(prev => prev.map(chat => {
+      if (chatIds.includes(chat.id)) {
+        return { ...chat, unread: 1 };
+      }
+      return chat;
+    }));
+    
+    // Update phone line unread counts
+    setLocalPhoneLines(prev => prev.map(line => {
+      const lineChats = line.chats.map(chat => ({
+        ...chat,
+        unread: chatIds.includes(chat.id) ? 1 : chat.unread
+      }));
+      
+      return {
+        ...line,
+        chats: lineChats,
+        unread: lineChats.reduce((sum, chat) => sum + chat.unread, 0)
+      };
+    }));
+    
+    // Clear selection
+    setSelectedChats([]);
+  };
+
+  const handleMakeCall = (number: string) => {
+    const chat = conversations.find(c => c.number === number || c.name === number);
+    setCallContact({
+      name: chat?.name,
+      number: chat?.number || number
+    });
+    setShowCallModal(true);
+  };
+
   return (
     <div className="h-[calc(100vh-4rem)] bg-black flex border-b border-[#B38B3F]/20 phone-system">
       {/* Phone Lines Column */}
@@ -523,6 +607,7 @@ export function PhoneSystem({ selectedMessage, selectedChat, onMessageSelect }: 
         isResizing={phoneLinesColumn.isResizing}
         onResizeStart={phoneLinesColumn.handleMouseDown}
         phoneLines={localPhoneLines}
+        onSearch={() => setShowSearch(true)}
         selectedLine={selectedLine}
         selectedProvider={selectedProvider}
         providers={providers}
@@ -537,12 +622,18 @@ export function PhoneSystem({ selectedMessage, selectedChat, onMessageSelect }: 
         width={chatsColumn.width}
         isResizing={chatsColumn.isResizing}
         onResizeStart={chatsColumn.handleMouseDown}
+        selectedChats={selectedChats}
+        setSelectedChats={setSelectedChats}
         selectedLine={selectedLine}
         currentChat={currentChat}
         conversations={draftChat ? [...conversations, draftChat] : conversations}
         onChatSelect={setCurrentChat}
         onNewMessage={handleStartNewMessage}
         chatStatuses={chatStatuses}
+        onMakeCall={handleMakeCall}
+        onDeleteChats={handleDeleteChats}
+        onMarkRead={handleMarkRead}
+        onMarkUnread={handleMarkUnread}
       />
 
       {/* Chat Area */}
@@ -575,6 +666,10 @@ export function PhoneSystem({ selectedMessage, selectedChat, onMessageSelect }: 
                 [chatId]: status
               }));
             }}
+            onMarkRead={handleMarkRead}
+            onMarkUnread={handleMarkUnread}
+            onMakeCall={handleMakeCall}
+            onDeleteChats={handleDeleteChats}
           />
         )}
       </div>
@@ -597,6 +692,33 @@ export function PhoneSystem({ selectedMessage, selectedChat, onMessageSelect }: 
           onClose={() => setShowProviderModal(false)}
           onSelect={handleProviderSelect}
           selectedProvider={selectedProvider}
+        />
+      )}
+      
+      {/* Search Modal */}
+      {showSearch && (
+        <SearchModal
+          onClose={() => setShowSearch(false)}
+          conversations={conversations}
+          onChatSelect={(chatId) => {
+            const chat = conversations.find(c => c.id === chatId);
+            if (chat) {
+              setSelectedLine(chat.lineId);
+              setCurrentChat(chatId);
+            }
+          }}
+        />
+      )}
+      
+      {/* Phone Call Modal */}
+      {showCallModal && callContact && (
+        <PhoneCallModal
+          onClose={() => {
+            setShowCallModal(false);
+            setCallContact(null);
+          }}
+          contactName={callContact.name}
+          contactNumber={callContact.number}
         />
       )}
     </div>

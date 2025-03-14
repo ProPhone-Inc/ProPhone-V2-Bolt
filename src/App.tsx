@@ -2,6 +2,9 @@ import React, { Suspense, lazy } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthContainer } from './components/AuthContainer';
+import { useCallState } from './hooks/useCallState'; 
+import { useIncomingCalls } from './hooks/useIncomingCalls';
+import { PhoneCallModal } from './components/Phone/components/PhoneCallModal';
 
 const Dashboard = lazy(() => 
   import('./components/Dashboard/Dashboard').then(module => ({ default: module.Dashboard }))
@@ -15,6 +18,8 @@ const LoadingSpinner = () => (
 
 function App() {
   const { isAuthenticated, isLoading } = useAuth();
+  const { activeCall } = useCallState();
+  const { incomingCall } = useIncomingCalls();
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -22,6 +27,26 @@ function App() {
   
   return (
     <ErrorBoundary>
+      {/* Global Call Modal */}
+      {activeCall && (
+        <PhoneCallModal
+          onClose={() => useCallState.getState().setActiveCall(null)}
+          contactName={activeCall.name}
+          contactNumber={activeCall.number}
+          isFloating={true}
+        />
+      )}
+      {/* Incoming Call Modal */}
+      {incomingCall && (
+        <PhoneCallModal
+          onClose={() => useIncomingCalls.getState().setIncomingCall(null)}
+          contactName={incomingCall.name}
+          contactNumber={incomingCall.number}
+          isFloating={false}
+          isIncoming={true}
+        />
+      )}
+
       {isAuthenticated ? (
         <Suspense fallback={<LoadingSpinner />}>
           <Dashboard />

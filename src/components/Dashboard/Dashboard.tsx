@@ -1,6 +1,7 @@
 import React, { useState, Suspense } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCopilot } from '../../hooks/useCopilot';
+import { useCallState } from '../../hooks/useCallState';
 import { X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import Header from './Header';
@@ -63,6 +64,7 @@ function AdminModal({ isOpen, onClose }: AdminModalProps) {
 export function Dashboard() {
   const { user, logout } = useAuth();
   const { provider, apiKey } = useCopilot();
+  const { activeCall } = useCallState();
   const [collapsed, setCollapsed] = useState(true); // Default to collapsed
   const [activePage, setActivePage] = useState('dashboard');
   const [showAdminModal, setShowAdminModal] = useState(false);
@@ -309,31 +311,10 @@ export function Dashboard() {
                 {activePage === 'phone' && (
                   <ErrorBoundary>
                     <Suspense fallback={<ComponentLoader />}>
-                      <PhoneSystem 
-                        selectedMessage={selectedMessage}
+                      <PhoneSystem
+                        selectedMessage={selectedMessage} 
                         selectedChat={selectedChat}
-                        onMessageSelect={setSelectedMessage}
-                      />
-                    </Suspense>
-                  </ErrorBoundary>
-                )}
-                {activePage === 'crm' && (
-                  <ErrorBoundary>
-                    <Suspense fallback={<ComponentLoader />}>
-                      <CRMDashboard
-                        activeView="kanban"
-                        onViewChange={(view) => console.log('View changed:', view)}
-                      />
-                    </Suspense>
-                  </ErrorBoundary>
-                )}
-                {activePage === 'phone' && (
-                  <ErrorBoundary>
-                    <Suspense fallback={<ComponentLoader />}>
-                      <PhoneSystem 
-                        selectedMessage={selectedMessage}
-                        selectedChat={selectedChat}
-                        onMessageSelect={setSelectedMessage}
+                        onMessageSelect={setSelectedMessage} 
                       />
                     </Suspense>
                   </ErrorBoundary>

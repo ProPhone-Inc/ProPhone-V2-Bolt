@@ -1,5 +1,6 @@
 import React from 'react';
 import { User, Phone, MessageSquare, Users, Star, ChevronLeft, ChevronRight, Calendar, MapPin, Tag, Link2 } from 'lucide-react';
+import { useCallState } from '../../../hooks/useCallState';
 import type { Chat } from '../../../modules/phone/types';
 
 interface CRMPanelProps {
@@ -20,6 +21,15 @@ export function CRMPanel({
   selectedChat
 }: CRMPanelProps) {
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
+  const { setActiveCall } = useCallState();
+
+  const handleMakeCall = () => {
+    if (!selectedChat) return;
+    setActiveCall({
+      name: selectedChat.name,
+      number: selectedChat.number || selectedChat.name
+    });
+  };
 
   return (
     <div 
@@ -89,7 +99,12 @@ export function CRMPanel({
                     </div>
                     <div className="flex items-center space-x-2 text-white/70">
                       <Phone className="w-4 h-4" />
-                      <span>+1 (555) 123-4567</span>
+                      <button
+                        onClick={handleMakeCall}
+                        className="hover:text-[#FFD700] transition-colors"
+                      >
+                        {selectedChat?.number || selectedChat?.name}
+                      </button>
                     </div>
                     <div className="flex items-center space-x-2 text-white/70">
                       <MessageSquare className="w-4 h-4" />

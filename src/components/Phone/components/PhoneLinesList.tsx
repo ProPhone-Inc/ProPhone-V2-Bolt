@@ -1,11 +1,12 @@
 import React from 'react';
 import { Search, Network, Phone, GripVertical } from 'lucide-react';
-import type { PhoneLine } from '../../../modules/phone/types';
+import type { PhoneLine, Chat } from '../../../modules/phone/types';
 
 interface PhoneLinesListProps {
   width: number;
   isResizing: boolean;
   onResizeStart: (e: React.MouseEvent) => void;
+  onSearch: () => void;
   phoneLines: PhoneLine[];
   selectedLine: string | null;
   selectedProvider: string | null;
@@ -25,6 +26,7 @@ export function PhoneLinesList({
   width,
   isResizing,
   onResizeStart,
+  onSearch,
   phoneLines,
   selectedLine,
   selectedProvider,
@@ -85,9 +87,14 @@ export function PhoneLinesList({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
           <input
+            onClick={(e) => {
+              e.preventDefault();
+              onSearch();
+            }}
             type="text"
             placeholder="Search lines..."
             className="w-full pl-10 pr-4 py-2 bg-zinc-800 border border-[#B38B3F]/20 rounded-lg text-white placeholder-white/40"
+            readOnly
           />
         </div>
       </div>

@@ -1,6 +1,8 @@
 import React from 'react';
-import { ArrowRight, Paperclip, Mic, MoreVertical, Home, ChevronDown, Phone, CheckCircle, Flame, Sun, Bell, Megaphone, Calendar, BarChart2, DollarSign, MessageSquare, X } from 'lucide-react';
+import { ArrowRight, Paperclip, Mic, MoreVertical, Home, ChevronDown, Phone, CheckCircle, Flame, Sun, Bell, Megaphone, Calendar, BarChart2, DollarSign, MessageSquare, X, ThumbsDown, Ban, Eye, EyeOff, Users, Trash2 } from 'lucide-react';
 import { useClickOutside } from '../../../hooks/useClickOutside';
+import { useCallState } from '../../../hooks/useCallState';
+import { Dialpad } from './Dialpad';
 import type { Chat } from '../../../modules/phone/types';
 
 interface ChatAreaProps {
@@ -15,6 +17,10 @@ interface ChatAreaProps {
   onStartChat: () => void;
   chatStatuses: Record<string, { label: string; icon: React.ReactNode }>;
   onStatusChange: (chatId: string, status: { label: string; icon: React.ReactNode }) => void;
+  onMarkRead: (chatIds: string[]) => void;
+  onMarkUnread: (chatIds: string[]) => void;
+  onDeleteChats: (chatIds: string[]) => void;
+  onMakeCall?: (number: string) => void;
 }
 
 export function ChatArea({
@@ -28,13 +34,21 @@ export function ChatArea({
   onNewMessageChange,
   onStartChat,
   chatStatuses,
-  onStatusChange
+  onStatusChange,
+  onMarkRead,
+  onMarkUnread, 
+  onMakeCall,
+  onDeleteChats
 }: ChatAreaProps) {
   const statusRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [showStatusDropdown, setShowStatusDropdown] = React.useState(false);
+  const [showMenu, setShowMenu] = React.useState(false);
+  const [showCallModal, setShowCallModal] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
   const [cursorPosition, setCursorPosition] = React.useState(0);
   const [error, setError] = React.useState('');
+  const { setActiveCall } = useCallState();
   const [activeFilters, setActiveFilters] = React.useState<{
     readStatus: { value: string; label: string } | null;
     statuses: Array<{ value: string; label: string; icon: React.ReactNode; color: string }>;
@@ -42,6 +56,8 @@ export function ChatArea({
     readStatus: null,
     statuses: []
   });
+
+  useClickOutside(menuRef, () => setShowMenu(false));
   
   React.useEffect(() => {
     // Clear error when creating message state changes
@@ -59,21 +75,26 @@ export function ChatArea({
     { value: 'appointment-set', label: 'Appointment Set', icon: <Calendar className="w-4 h-4 text-indigo-400" />, color: 'text-indigo-400 bg-indigo-400/20' },
     { value: 'needs-analysis', label: 'Needs Analysis', icon: <BarChart2 className="w-4 h-4 text-cyan-400" />, color: 'text-cyan-400 bg-cyan-400/20' },
     { value: 'make-offer', label: 'Make Offer', icon: <DollarSign className="w-4 h-4 text-green-400" />, color: 'text-green-400 bg-green-400/20' },
+    { value: 'not-interested', label: 'Not Interested', icon: <ThumbsDown className="w-4 h-4 text-gray-400" />, color: 'text-gray-400 bg-gray-400/20' },
+    { value: 'dnc', label: 'DNC', icon: <Ban className="w-4 h-4 text-red-700" />, color: 'text-red-700 bg-red-700/20' },
     { value: 'conversion', label: 'Conversion', icon: <CheckCircle className="w-4 h-4 text-emerald-400" />, color: 'text-emerald-400 bg-emerald-400/20' }
   ];
 
   useClickOutside(statusRef, () => setShowStatusDropdown(false));
 
   const formatPhoneNumber = (value: string) => {
-    // Strip all non-digits
     const numbers = value.replace(/\D/g, '');
-    // Format based on length
-    if (numbers.length <= 3) {
-      return `(${numbers}`;
-    } else if (numbers.length <= 6) {
-      return `(${numbers.slice(0, 3)}) ${numbers.slice(3)}`;
+    
+    // Remove leading 1 if present
+    const cleanNumbers = numbers.startsWith('1') ? numbers.slice(1) : numbers;
+    
+    // Format remaining digits
+    if (cleanNumbers.length <= 3) {
+      return `(${cleanNumbers}`;
+    } else if (cleanNumbers.length <= 6) {
+      return `(${cleanNumbers.slice(0, 3)}) ${cleanNumbers.slice(3)}`;
     } else {
-      return `(${numbers.slice(0, 3)}) ${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`;
+      return `(${cleanNumbers.slice(0, 3)}) ${cleanNumbers.slice(3, 6)}-${cleanNumbers.slice(6, 10)}`;
     }
   };
 
@@ -238,12 +259,74 @@ export function ChatArea({
                   </div>
                 )}
               </div>
-              <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+              <button 
+                onClick={() => {
+                  if (selectedChat?.number) {
+                    onMakeCall?.(selectedChat.number);
+                  } else {
+                    onMakeCall?.(selectedChat.name);
+                  }
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                title="Call contact"
+              >
                 <Phone className="w-5 h-5 text-[#FFD700]" />
               </button>
-              <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+              <div className="relative" ref={menuRef}>
+                <button 
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
                 <MoreVertical className="w-5 h-5 text-[#FFD700]" />
-              </button>
+                </button>
+                {showMenu && (
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900/95 backdrop-blur-md border border-[#B38B3F]/20 rounded-lg shadow-xl z-50">
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          onMarkRead([selectedChat.id]);
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-white hover:bg-white/5 transition-colors flex items-center space-x-2"
+                      >
+                        <Eye className="w-4 h-4 text-white/60" />
+                        <span>Mark as Read</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          onMarkUnread([selectedChat.id]);
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-white hover:bg-white/5 transition-colors flex items-center space-x-2"
+                      >
+                        <EyeOff className="w-4 h-4 text-white/60" />
+                        <span>Mark as Unread</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          // TODO: Implement start group functionality
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-white hover:bg-white/5 transition-colors flex items-center space-x-2"
+                      >
+                        <Users className="w-4 h-4 text-white/60" />
+                        <span>Start Group</span>
+                      </button>
+                      <div className="h-px bg-[#B38B3F]/20 my-1" />
+                      <button
+                        onClick={() => {
+                          onDeleteChats([selectedChat.id]);
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-red-400 hover:bg-red-500/10 transition-colors flex items-center space-x-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}
