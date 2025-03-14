@@ -129,13 +129,13 @@ process.on('SIGINT', async () => {
   }
 
   // Auth Routes
-  app.post('/api/auth/register', async (req: Request, res: Response) => {
+  app.post('/api/auth/register', async (req: Request, res: Response): Promise<void> => {
     try {
       const { email, password, name } = req.body;
 
       const existingUser = await User.findOne({ email }).lean();
       if (existingUser) {
-        return res.status(400).json({ error: 'Email already registered' });
+        res.status(400).json({ error: 'Email already registered' });
       }
 
       const user = new User({ email, password, name });
@@ -148,39 +148,38 @@ process.on('SIGINT', async () => {
       res.status(500).json({ error: 'Registration failed' });
     }
   });
-
-  app.post('/api/auth/login', async (req: Request, res: Response) => {
+  app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> => {
     try {
       const { email, password } = req.body;
-
+  
       const user = await User.findOne({ email }).select('+password');
       if (!user) {
-        return res.status(401).json({ error: 'Invalid credentials' });
+        res.status(401).json({ error: 'Invalid credentials' });
+        return;
       }
-
-      const isMatch = await user.comparePassword(password);
+  
+      const isMatch = await (user as any).comparePassword(password);
       if (!isMatch) {
-        return res.status(401).json({ error: 'Invalid credentials' });
+        res.status(401).json({ error: 'Invalid credentials' });
+        return;
       }
-
+  
       const token = generateToken(user._id.toString());
-
+  
       // Update last login
-      await User.findByIdAndUpdate(user._id, 
-        { lastLogin: new Date() },
-        { new: true }
-      );
-
+      await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
+  
       // Remove password from response
       const userResponse = user.toObject();
       delete userResponse.password;
-
+  
       res.json({ user: userResponse, token });
     } catch (error) {
       console.error('Login error:', error);
       res.status(500).json({ error: 'Login failed' });
     }
   });
+  
 
   // Protected Routes
   app.get('/api/user/profile', auth, async (req: any, res: Response) => {
@@ -193,14 +192,15 @@ process.on('SIGINT', async () => {
     }
   });
 
-  app.put('/api/user/profile', auth, async (req: any, res: Response) => {
+  app.put('/api/user/profile', auth, async (req: Request, res: Response): Promise<void> => {
     try {
       const updates = Object.keys(req.body);
       const allowedUpdates = ['name', 'email', 'password'];
       const isValidOperation = updates.every(update => allowedUpdates.includes(update));
 
       if (!isValidOperation) {
-        return res.status(400).json({ error: 'Invalid updates' });
+       res.status(400).json({ error: 'Invalid updates' });
+       return;
       }
 
       const user = await User.findByIdAndUpdate(
